@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gym Session Management Tool</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f9; color: #333; margin: 20px; }
+        .container { max-width: 1100px; margin: auto; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h2 { color: #2c3e50; margin-top: 0; margin-bottom: 15px; }
+        
+        .session-picker { display: flex; gap: 15px; align-items: center; background: #e2e8f0; padding: 15px; border-radius: 6px; }
+        
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 15px; }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label { font-weight: bold; font-size: 0.8em; margin-bottom: 4px; color: #475569; }
+        input, select { padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.9em; }
+        
+        /* HIDE SPINNER ARROWS ON NUMBER INPUTS */
+        input[type=number]::-webkit-outer-spin-button,
+        input[type=number]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        .btn-container { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
+        button { padding: 8px 16px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        .btn-primary { background: #2980b9; color: white; }
+        .btn-primary:hover { background: #1f6391; }
+        .btn-add { background: #16a085; color: white; }
+        .btn-add:hover { background: #117a65; }
+        .btn-save { background: #27ae60; color: white; font-size: 1em; padding: 10px 20px; }
+        .btn-save:hover { background: #1e8449; }
+        .btn-danger { background: #e74c3c; color: white; padding: 4px 8px; font-size: 0.8em; }
+        .btn-sort { background: #e2e8f0; color: #334155; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9em; }
+        th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; }
+        th { background: #2c3e50; color: white; }
+        tr:nth-child(even) { background: #f8fafc; }
+        .table-input { width: 90%; padding: 4px; border: 1px solid #cbd5e1; border-radius: 3px; background-color: transparent; }
+        .target-hr-cell { font-weight: bold; color: #27ae60; }
+        .status-msg { margin-left: 10px; font-size: 0.9em; font-weight: bold; }
+
+        /* WARD SPECIFIC COLORS */
+        .ward-9B { background-color: #e0f2fe !important; } /* Soft Blue */
+        .ward-9C { background-color: #dcfce7 !important; } /* Soft Green */
+        .ward-9D { background-color: #ffedd5 !important; } /* Soft Orange */
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- RETRIEVE SESSION BAR -->
+    <div class="card">
+        <div class="session-picker">
+            <label style="font-weight: bold;">Select Gym Session:</label>
+            <button class="btn-primary" onclick="retrieveData('AM')">Retrieve AM List</button>
+            <button class="btn-primary" onclick="retrieveData('PM')">Retrieve PM List</button>
+            <span id="loadStatus" class="status-msg"></span>
+        </div>
+    </div>
+
+    <!-- MAIN WORKSPACE -->
+    <div id="workspace" class="card" style="display: none;">
+        <h2 id="sessionHeader">Session Management</h2>
+
+        <!-- ENTRY FORM -->
+        <form id="addForm" onsubmit="event.preventDefault(); addPatientToLocal();">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Therapist</label>
+                    <input type="text" id="therapist" required>
+                </div>
+                <div class="form-group">
+                    <label>Ward</label>
+                    <input type="text" id="ward" required>
+                </div>
+                <div class="form-group">
+                    <label>Bed</label>
+                    <input type="text" id="bed" required>
+                </div>
+                <div class="form-group">
+                    <label>Name (Initials)</label>
+                    <input type="text" id="patientName" required>
+                </div>
+                <div class="form-group">
+                    <label>Age</label>
+                    <input type="number" id="age" min="1" max="120" required>
+                </div>
+                <div class="form-group">
+                    <label>Intensity</label>
+                    <select id="intensity" required>
+                        <option value="Light">Light (40%)</option>
+                        <option value="Moderate">Moderate (60%)</option>
+                    </select>
+                </div>
+            </div>
+            <button type="submit" class="btn-add">+ Add Patient to Table</button>
+        </form>
+
+        <hr style="margin: 25px 0; border: 0; border-top: 1px solid #e2e8f0;">
+
+        <!-- TOOLBAR & SAVE -->
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <span style="font-size: 0.85em; font-weight: bold;">Sort by: </span>
+                <button class="btn-sort" onclick="sortData('ward')">Ward</button>
+                <button class="btn-sort" onclick="sortData('therapist')">Therapist</button>
+            </div>
+            <div>
+                <button class="btn-save" onclick="saveAllToExcel()">Save All to Google Excel</button>
+                <div id="saveStatus" class="status-msg" style="text-align: right; margin-top: 5px;"></div>
+            </div>
+        </div>
+
+        <!-- PATIENT TABLE -->
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th>Therapist</th>
+                    <th>Ward</th>
+                    <th>Bed</th>
+                    <th>Name</th>
+                    <th>Age</th>
+                    <th>Intensity</th>
+                    <th>Resting HR (bpm)</th>
+                    <th>Target HR (bpm)</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzcl7U68cpav7HOu-lokxqK9Lm95XiIX9S5DucDTg0m01uOd1mYOijld-VUpDkQ7SJt/exec";
+
+    let currentRecords = [];
+    let currentSession = "";
+
+    // Helper function to return CSS class based on Ward string
+    function getWardColorClass(wardStr) {
+        let cleanWard = (wardStr || "").toString().trim().toUpperCase();
+        if (cleanWard === "9B") return "ward-9B";
+        if (cleanWard === "9C") return "ward-9C";
+        if (cleanWard === "9D") return "ward-9D";
+        return "";
+    }
+
+    // Warm up connection on load
+    window.addEventListener('DOMContentLoaded', () => {
+        fetch(WEB_APP_URL + "?action=retrieve&session=AM", { mode: 'no-cors' }).catch(()=>{});
+    });
+
+    // RETRIEVE DATA
+    async function retrieveData(session) {
+        currentSession = session;
+        const loadStatus = document.getElementById('loadStatus');
+        
+        const cachedData = localStorage.getItem('gym_records_' + session);
+        if (cachedData) {
+            try {
+                currentRecords = JSON.parse(cachedData);
+                document.getElementById('sessionHeader').innerText = session + " Gym Session List (Cached)";
+                document.getElementById('workspace').style.display = "block";
+                renderTable();
+                loadStatus.style.color = "#2980b9";
+                loadStatus.innerText = "Loaded cached data. Refreshing live...";
+            } catch(e){}
+        } else {
+            loadStatus.style.color = "#2980b9";
+            loadStatus.innerText = "Loading " + session + " list...";
+        }
+
+        try {
+            let response = await fetch(WEB_APP_URL + "?action=retrieve&session=" + session);
+            let res = await response.json();
+            if (res.status === "success") {
+                currentRecords = res.records;
+                localStorage.setItem('gym_records_' + session, JSON.stringify(currentRecords));
+                
+                document.getElementById('sessionHeader').innerText = session + " Gym Session List";
+                document.getElementById('workspace').style.display = "block";
+                loadStatus.style.color = "#27ae60";
+                loadStatus.innerText = session + " List Ready!";
+                renderTable();
+            }
+        } catch (e) {
+            if (!cachedData) {
+                loadStatus.style.color = "#e74c3c";
+                loadStatus.innerText = "Error loading list.";
+            }
+        }
+    }
+
+    // ADD PATIENT TO LOCAL LIST
+    function addPatientToLocal() {
+        const newPatient = {
+            id: "PAT-" + Date.now(),
+            therapist: document.getElementById('therapist').value.trim(),
+            ward: document.getElementById('ward').value.trim(),
+            bed: document.getElementById('bed').value.trim(),
+            name: document.getElementById('patientName').value.trim(),
+            age: parseInt(document.getElementById('age').value),
+            intensity: document.getElementById('intensity').value,
+            restingHR: "",
+            targetHR: ""
+        };
+
+        currentRecords.push(newPatient);
+        renderTable();
+
+        document.getElementById('bed').value = '';
+        document.getElementById('patientName').value = '';
+        document.getElementById('age').value = '';
+    }
+
+    // TARGET HR FORMULA CALCULATOR
+    function calculateTargetHR(age, restingHR, intensity) {
+        if (!age || !restingHR || isNaN(age) || isNaN(restingHR)) return "";
+        let pct = (intensity === "Light") ? 0.40 : 0.60;
+        let target = ((220 - age - parseFloat(restingHR)) * pct) + parseFloat(restingHR);
+        return Math.round(target);
+    }
+
+    // DIRECT UPDATE FUNCTION FOR FAST TARGET HR RECALCULATION
+    function updateRowHR(idx) {
+        let age = currentRecords[idx].age;
+        let restingHR = currentRecords[idx].restingHR;
+        let intensity = currentRecords[idx].intensity;
+        
+        let targetHR = calculateTargetHR(age, restingHR, intensity);
+        currentRecords[idx].targetHR = targetHR;
+
+        let targetCell = document.getElementById(`target-hr-${idx}`);
+        if (targetCell) {
+            targetCell.innerText = targetHR ? targetHR + ' bpm' : '-';
+        }
+    }
+
+    function updateLocal(idx, field, value) {
+        currentRecords[idx][field] = value;
+        if (field === 'age' || field === 'intensity') {
+            updateRowHR(idx);
+        } else if (field === 'ward') {
+            renderTable(); // Re-render to update color class if Ward changes
+        }
+    }
+
+    function handleRestingHRInput(idx, value) {
+        currentRecords[idx].restingHR = value;
+        updateRowHR(idx);
+    }
+
+    // RENDER TABLE
+    function renderTable() {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = "";
+
+        if (currentRecords.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#888;">No patients in this list yet. Add one above.</td></tr>`;
+            return;
+        }
+
+        let htmlBuffer = "";
+        currentRecords.forEach((r, idx) => {
+            let targetHR = calculateTargetHR(r.age, r.restingHR, r.intensity);
+            r.targetHR = targetHR;
+
+            let colorClass = getWardColorClass(r.ward);
+
+            htmlBuffer += `
+                <tr>
+                    <td><input class="table-input" type="text" value="${r.therapist}" onchange="updateLocal(${idx}, 'therapist', this.value)"></td>
+                    <td class="${colorClass}"><input class="table-input" type="text" value="${r.ward}" onchange="updateLocal(${idx}, 'ward', this.value)"></td>
+                    <td class="${colorClass}"><input class="table-input" type="text" value="${r.bed}" onchange="updateLocal(${idx}, 'bed', this.value)"></td>
+                    <td><input class="table-input" type="text" value="${r.name}" onchange="updateLocal(${idx}, 'name', this.value)"></td>
+                    <td><input class="table-input" type="number" style="width:45px;" value="${r.age}" onchange="updateLocal(${idx}, 'age', parseInt(this.value))"></td>
+                    <td>
+                        <select class="table-input" onchange="updateLocal(${idx}, 'intensity', this.value)">
+                            <option value="Light" ${r.intensity === 'Light' ? 'selected' : ''}>Light (40%)</option>
+                            <option value="Moderate" ${r.intensity === 'Moderate' ? 'selected' : ''}>Moderate (60%)</option>
+                        </select>
+                    </td>
+                    <td><input class="table-input" type="number" placeholder="bpm" value="${r.restingHR}" oninput="handleRestingHRInput(${idx}, this.value)"></td>
+                    <td class="target-hr-cell" id="target-hr-${idx}">${targetHR ? targetHR + ' bpm' : '-'}</td>
+                    <td><button class="btn-danger" onclick="deleteLocal(${idx})">Delete</button></td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = htmlBuffer;
+    }
+
+    function deleteLocal(idx) {
+        currentRecords.splice(idx, 1);
+        renderTable();
+    }
+
+    // MULTI-TIER SORTING (WARD -> THERAPIST -> BED)
+    function sortData(key) {
+        if (key === 'ward') {
+            const wardPriority = { "9B": 1, "9C": 2, "9D": 3 };
+
+            currentRecords.sort((a, b) => {
+                let wardA = (a.ward || "").toString().trim().toUpperCase();
+                let wardB = (b.ward || "").toString().trim().toUpperCase();
+
+                let orderA = wardPriority[wardA] || 99;
+                let orderB = wardPriority[wardB] || 99;
+
+                if (orderA !== orderB) {
+                    return orderA - orderB;
+                }
+
+                let therapistA = (a.therapist || "").toString().trim();
+                let therapistB = (b.therapist || "").toString().trim();
+                let therapistComp = therapistA.localeCompare(therapistB, undefined, { sensitivity: 'base' });
+                if (therapistComp !== 0) {
+                    return therapistComp;
+                }
+
+                return (a.bed || "").toString().localeCompare((b.bed || "").toString(), undefined, { numeric: true });
+            });
+        } else {
+            currentRecords.sort((a, b) => (a[key] || "").toString().localeCompare((b[key] || "").toString(), undefined, { numeric: true }));
+        }
+
+        renderTable();
+    }
+
+    // SAVE ALL CHANGES TO GOOGLE SHEET & LOCAL CACHE
+    async function saveAllToExcel() {
+        const saveStatus = document.getElementById('saveStatus');
+        saveStatus.style.color = "#2980b9";
+        saveStatus.innerText = "Saving all records to Google Sheet...";
+
+        localStorage.setItem('gym_records_' + currentSession, JSON.stringify(currentRecords));
+
+        try {
+            let response = await fetch(WEB_APP_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "saveAll", session: currentSession, records: currentRecords })
+            });
+            let res = await response.json();
+            if (res.status === "success") {
+                saveStatus.style.color = "#27ae60";
+                saveStatus.innerText = " Saved successfully to " + currentSession + " Sheet!";
+                setTimeout(() => { saveStatus.innerText = ""; }, 4000);
+            }
+        } catch (e) {
+            saveStatus.style.color = "#e74c3c";
+            saveStatus.innerText = "Error saving data.";
+        }
+    }
+</script>
+
+</body>
+</html>
