@@ -221,12 +221,25 @@
         document.getElementById('age').value = '';
     }
 
-    // TARGET HR FORMULA CALCULATOR
+    // TARGET HR FORMULA CALCULATOR (UPDATED FOR RANGE AND DISPLAY FORMAT)
     function calculateTargetHR(age, restingHR, intensity) {
-        if (!age || !restingHR || isNaN(age) || isNaN(restingHR)) return "";
-        let pct = (intensity === "Light") ? 0.40 : 0.60;
-        let target = ((220 - age - parseFloat(restingHR)) * pct) + parseFloat(restingHR);
-        return Math.round(target);
+        let ageNum = parseFloat(age);
+        let hrNum = parseFloat(restingHR);
+
+        if (isNaN(ageNum) || isNaN(hrNum) || !ageNum || !hrNum) return "";
+
+        let hrReserve = 220 - ageNum - hrNum;
+        if (hrReserve <= 0) return "";
+
+        if (intensity === "Light") {
+            let targetMax = Math.round((hrReserve * 0.40) + hrNum);
+            return `< ${targetMax}`;
+        } else if (intensity === "Moderate") {
+            let targetMin = Math.round((hrReserve * 0.40) + hrNum);
+            let targetMax = Math.round((hrReserve * 0.60) + hrNum);
+            return `${targetMin}-${targetMax}`;
+        }
+        return "";
     }
 
     // DIRECT UPDATE FUNCTION FOR FAST TARGET HR RECALCULATION
@@ -284,8 +297,8 @@
                     <td><input class="table-input" type="number" style="width:45px;" value="${r.age}" onchange="updateLocal(${idx}, 'age', parseInt(this.value))"></td>
                     <td>
                         <select class="table-input" onchange="updateLocal(${idx}, 'intensity', this.value)">
-                            <option value="Light" ${r.intensity === 'Light' ? 'selected' : ''}>Light (40%)</option>
-                            <option value="Moderate" ${r.intensity === 'Moderate' ? 'selected' : ''}>Moderate (60%)</option>
+                            <option value="Light" ${r.intensity === 'Light' ? 'selected' : ''}>Light (<40%)</option>
+                            <option value="Moderate" ${r.intensity === 'Moderate' ? 'selected' : ''}>Moderate (40-60%)</option>
                         </select>
                     </td>
                     <td><input class="table-input" type="number" placeholder="bpm" value="${r.restingHR}" oninput="handleRestingHRInput(${idx}, this.value)"></td>
@@ -360,6 +373,6 @@
         }
     }
 </script>
-
+    
 </body>
 </html>
