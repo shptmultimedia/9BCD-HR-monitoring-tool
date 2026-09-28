@@ -6,7 +6,7 @@
     <title>Gym Session Management Tool</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f9; color: #333; margin: 20px; }
-        .container { max-width: 1100px; margin: auto; }
+        .container { max-width: 1150px; margin: auto; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
         h2 { color: #2c3e50; margin-top: 0; margin-bottom: 15px; }
         
@@ -17,6 +17,7 @@
         .form-group label { font-weight: bold; font-size: 0.8em; margin-bottom: 4px; color: #475569; }
         input, select { padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.9em; }
         
+        /* HIDE SPINNER ARROWS ON NUMBER INPUTS */
         input[type=number]::-webkit-outer-spin-button,
         input[type=number]::-webkit-inner-spin-button {
             -webkit-appearance: none;
@@ -35,41 +36,29 @@
         .btn-save { background: #27ae60; color: white; font-size: 1em; padding: 10px 20px; }
         .btn-save:hover { background: #1e8449; }
         .btn-danger { background: #e74c3c; color: white; padding: 4px 8px; font-size: 0.8em; }
+        .btn-absent { background: #94a3b8; color: white; padding: 4px 6px; font-size: 0.75em; border-radius: 3px; margin-left: 4px; }
+        .btn-absent:hover { background: #64748b; }
         .btn-sort { background: #e2e8f0; color: #334155; }
-        
-        .btn-absent {
-            padding: 4px 8px;
-            font-size: 0.75em;
-            border-radius: 3px;
-            border: 1px solid #cbd5e1;
-            background-color: #f1f5f9;
-            color: #64748b;
-            cursor: pointer;
-            margin-left: 4px;
-        }
-        .btn-absent.active {
-            background-color: #e2e8f0;
-            color: #b91c1c;
-            border-color: #fca5a5;
-            font-weight: bold;
-        }
         
         table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9em; }
         th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; }
         th { background: #2c3e50; color: white; }
         tr:nth-child(even) { background: #f8fafc; }
         .table-input { width: 85%; padding: 4px; border: 1px solid #cbd5e1; border-radius: 3px; background-color: transparent; }
+        .hr-input-group { display: flex; align-items: center; justify-content: space-between; }
         .target-hr-cell { font-weight: bold; color: #27ae60; }
         .status-msg { margin-left: 10px; font-size: 0.9em; font-weight: bold; }
 
-        .ward-9B { background-color: #e0f2fe !important; }
-        .ward-9C { background-color: #dcfce7 !important; }
-        .ward-9D { background-color: #ffedd5 !important; }
+        /* WARD SPECIFIC COLORS */
+        .ward-9B { background-color: #e0f2fe !important; } /* Soft Blue */
+        .ward-9C { background-color: #dcfce7 !important; } /* Soft Green */
+        .ward-9D { background-color: #ffedd5 !important; } /* Soft Orange */
     </style>
 </head>
 <body>
 
 <div class="container">
+    <!-- RETRIEVE SESSION BAR -->
     <div class="card">
         <div class="session-picker">
             <label style="font-weight: bold;">Select Gym Session:</label>
@@ -79,9 +68,11 @@
         </div>
     </div>
 
+    <!-- MAIN WORKSPACE -->
     <div id="workspace" class="card" style="display: none;">
         <h2 id="sessionHeader">Session Management</h2>
 
+        <!-- ENTRY FORM -->
         <form id="addForm" onsubmit="event.preventDefault(); addPatientToLocal();">
             <div class="form-grid">
                 <div class="form-group">
@@ -117,6 +108,7 @@
 
         <hr style="margin: 25px 0; border: 0; border-top: 1px solid #e2e8f0;">
 
+        <!-- TOOLBAR & SAVE -->
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <span style="font-size: 0.85em; font-weight: bold;">Sort by: </span>
@@ -129,6 +121,7 @@
             </div>
         </div>
 
+        <!-- PATIENT TABLE -->
         <table id="dataTable">
             <thead>
                 <tr>
@@ -138,7 +131,7 @@
                     <th>Name</th>
                     <th>Age</th>
                     <th>Intensity</th>
-                    <th>Resting HR (bpm)</th>
+                    <th style="min-width:160px;">Resting HR (bpm)</th>
                     <th>Target HR (bpm)</th>
                     <th>Action</th>
                 </tr>
@@ -154,6 +147,7 @@
     let currentRecords = [];
     let currentSession = "";
 
+    // Helper function to return CSS class based on Ward string
     function getWardColorClass(wardStr) {
         let cleanWard = (wardStr || "").toString().trim().toUpperCase();
         if (cleanWard === "9B") return "ward-9B";
@@ -162,25 +156,25 @@
         return "";
     }
 
-    // Auto-fetch AM list instantly on page load
+    // Warm up connection on load
     window.addEventListener('DOMContentLoaded', () => {
-        retrieveData('AM');
+        fetch(WEB_APP_URL + "?action=retrieve&session=AM", { mode: 'no-cors' }).catch(()=>{});
     });
 
+    // RETRIEVE DATA
     async function retrieveData(session) {
         currentSession = session;
         const loadStatus = document.getElementById('loadStatus');
         
-        // Render instantly from local cache if available
         const cachedData = localStorage.getItem('gym_records_' + session);
         if (cachedData) {
             try {
                 currentRecords = JSON.parse(cachedData);
-                document.getElementById('sessionHeader').innerText = session + " Gym Session List";
+                document.getElementById('sessionHeader').innerText = session + " Gym Session List (Cached)";
                 document.getElementById('workspace').style.display = "block";
                 renderTable();
                 loadStatus.style.color = "#2980b9";
-                loadStatus.innerText = "Loaded cached data. Refreshing...";
+                loadStatus.innerText = "Loaded cached data. Refreshing live...";
             } catch(e){}
         } else {
             loadStatus.style.color = "#2980b9";
@@ -204,12 +198,11 @@
             if (!cachedData) {
                 loadStatus.style.color = "#e74c3c";
                 loadStatus.innerText = "Error loading list.";
-            } else {
-                loadStatus.innerText = "";
             }
         }
     }
 
+    // ADD PATIENT TO LOCAL LIST
     function addPatientToLocal() {
         const newPatient = {
             id: "PAT-" + Date.now(),
@@ -220,8 +213,7 @@
             age: parseInt(document.getElementById('age').value),
             intensity: document.getElementById('intensity').value,
             restingHR: "",
-            targetHR: "",
-            absent: false
+            targetHR: ""
         };
 
         currentRecords.push(newPatient);
@@ -232,49 +224,32 @@
         document.getElementById('age').value = '';
     }
 
-    function calculateTargetHR(age, restingHR, intensity, absent) {
-        if (absent) return "";
-        let ageNum = parseFloat(age);
-        let hrNum = parseFloat(restingHR);
+    // TARGET HR FORMULA CALCULATOR (RETURNS RANGE)
+    function calculateTargetHR(age, restingHR, intensity) {
+        if (!age || restingHR === "" || restingHR === null || isNaN(age) || isNaN(restingHR)) return "";
+        let minPct = (intensity === "Light") ? 0.30 : 0.40;
+        let maxPct = (intensity === "Light") ? 0.39 : 0.60;
 
-        if (isNaN(ageNum) || isNaN(hrNum) || !ageNum || !hrNum) return "";
+        let hrr = 220 - parseFloat(age) - parseFloat(restingHR);
+        let minTarget = Math.round((hrr * minPct) + parseFloat(restingHR));
+        let maxTarget = Math.round((hrr * maxPct) + parseFloat(restingHR));
 
-        let hrReserve = 220 - ageNum - hrNum;
-        if (hrReserve <= 0) return "";
-
-        if (intensity === "Light") {
-            let targetMin = Math.round((hrReserve * 0.30) + hrNum);
-            let targetMax = Math.round((hrReserve * 0.39) + hrNum);
-            return `${targetMin}-${targetMax}`;
-        } else if (intensity === "Moderate") {
-            let targetMin = Math.round((hrReserve * 0.40) + hrNum);
-            let targetMax = Math.round((hrReserve * 0.60) + hrNum);
-            return `${targetMin}-${targetMax}`;
-        }
-        return "";
+        return `${minTarget} - ${maxTarget}`;
     }
 
+    // DIRECT UPDATE FUNCTION FOR FAST TARGET HR RECALCULATION
     function updateRowHR(idx) {
         let age = currentRecords[idx].age;
         let restingHR = currentRecords[idx].restingHR;
         let intensity = currentRecords[idx].intensity;
-        let absent = currentRecords[idx].absent;
         
-        let targetHR = calculateTargetHR(age, restingHR, intensity, absent);
+        let targetHR = calculateTargetHR(age, restingHR, intensity);
         currentRecords[idx].targetHR = targetHR;
 
         let targetCell = document.getElementById(`target-hr-${idx}`);
         if (targetCell) {
             targetCell.innerText = targetHR ? targetHR + ' bpm' : '-';
         }
-    }
-
-    function toggleAbsent(idx) {
-        currentRecords[idx].absent = !currentRecords[idx].absent;
-        if (currentRecords[idx].absent) {
-            currentRecords[idx].restingHR = "";
-        }
-        renderTable();
     }
 
     function updateLocal(idx, field, value) {
@@ -291,6 +266,17 @@
         updateRowHR(idx);
     }
 
+    // 標記為 Absent（缺席）
+    function setAbsent(idx) {
+        currentRecords[idx].restingHR = "";
+        let inputElem = document.getElementById(`resting-hr-input-${idx}`);
+        if (inputElem) {
+            inputElem.value = "";
+        }
+        updateRowHR(idx);
+    }
+
+    // RENDER TABLE
     function renderTable() {
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = "";
@@ -302,11 +288,10 @@
 
         let htmlBuffer = "";
         currentRecords.forEach((r, idx) => {
-            let targetHR = calculateTargetHR(r.age, r.restingHR, r.intensity, r.absent);
+            let targetHR = calculateTargetHR(r.age, r.restingHR, r.intensity);
             r.targetHR = targetHR;
 
             let colorClass = getWardColorClass(r.ward);
-            let isAbsent = r.absent || false;
 
             htmlBuffer += `
                 <tr>
@@ -321,9 +306,11 @@
                             <option value="Moderate" ${r.intensity === 'Moderate' ? 'selected' : ''}>Moderate (40-60%)</option>
                         </select>
                     </td>
-                    <td style="white-space: nowrap;">
-                        <input class="table-input" style="width:55px;" type="number" placeholder="bpm" value="${isAbsent ? '' : r.restingHR}" ${isAbsent ? 'disabled' : ''} oninput="handleRestingHRInput(${idx}, this.value)">
-                        <button class="btn-absent ${isAbsent ? 'active' : ''}" onclick="toggleAbsent(${idx})">${isAbsent ? 'Absent' : 'Abs?'}</button>
+                    <td>
+                        <div class="hr-input-group">
+                            <input id="resting-hr-input-${idx}" class="table-input" type="number" placeholder="bpm" value="${r.restingHR !== undefined ? r.restingHR : ''}" oninput="handleRestingHRInput(${idx}, this.value)">
+                            <button class="btn-absent" title="Mark as Absent" onclick="setAbsent(${idx})">Absent</button>
+                        </div>
                     </td>
                     <td class="target-hr-cell" id="target-hr-${idx}">${targetHR ? targetHR + ' bpm' : '-'}</td>
                     <td><button class="btn-danger" onclick="deleteLocal(${idx})">Delete</button></td>
@@ -339,6 +326,7 @@
         renderTable();
     }
 
+    // MULTI-TIER SORTING (WARD -> THERAPIST -> BED)
     function sortData(key) {
         if (key === 'ward') {
             const wardPriority = { "9B": 1, "9C": 2, "9D": 3 };
@@ -370,6 +358,7 @@
         renderTable();
     }
 
+    // SAVE ALL CHANGES TO GOOGLE SHEET & LOCAL CACHE
     async function saveAllToExcel() {
         const saveStatus = document.getElementById('saveStatus');
         saveStatus.style.color = "#2980b9";
@@ -385,7 +374,7 @@
             let res = await response.json();
             if (res.status === "success") {
                 saveStatus.style.color = "#27ae60";
-                saveStatus.innerText = " Saved successfully to " + currentSession + " Sheet & Analysis Tab!";
+                saveStatus.innerText = " Saved successfully to " + currentSession + " Sheet & Analysis Sheet!";
                 setTimeout(() => { saveStatus.innerText = ""; }, 4000);
             }
         } catch (e) {
@@ -394,6 +383,6 @@
         }
     }
 </script>
-    
+
 </body>
 </html>
