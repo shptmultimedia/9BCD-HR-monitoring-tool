@@ -38,18 +38,36 @@
         .btn-danger { background: #e74c3c; color: white; padding: 4px 8px; font-size: 0.8em; }
         .btn-sort { background: #e2e8f0; color: #334155; }
         
+        /* ABSENT BUTTON STYLES */
+        .btn-absent {
+            padding: 4px 8px;
+            font-size: 0.75em;
+            border-radius: 3px;
+            border: 1px solid #cbd5e1;
+            background-color: #f1f5f9;
+            color: #64748b;
+            cursor: pointer;
+            margin-left: 4px;
+        }
+        .btn-absent.active {
+            background-color: #e2e8f0;
+            color: #b91c1c;
+            border-color: #fca5a5;
+            font-weight: bold;
+        }
+        
         table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9em; }
         th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; }
         th { background: #2c3e50; color: white; }
         tr:nth-child(even) { background: #f8fafc; }
-        .table-input { width: 90%; padding: 4px; border: 1px solid #cbd5e1; border-radius: 3px; background-color: transparent; }
+        .table-input { width: 85%; padding: 4px; border: 1px solid #cbd5e1; border-radius: 3px; background-color: transparent; }
         .target-hr-cell { font-weight: bold; color: #27ae60; }
         .status-msg { margin-left: 10px; font-size: 0.9em; font-weight: bold; }
 
         /* WARD SPECIFIC COLORS */
-        .ward-9B { background-color: #e0f2fe !important; } /* Soft Blue */
-        .ward-9C { background-color: #dcfce7 !important; } /* Soft Green */
-        .ward-9D { background-color: #ffedd5 !important; } /* Soft Orange */
+        .ward-9B { background-color: #e0f2fe !important; }
+        .ward-9C { background-color: #dcfce7 !important; }
+        .ward-9D { background-color: #ffedd5 !important; }
     </style>
 </head>
 <body>
@@ -95,7 +113,7 @@
                 <div class="form-group">
                     <label>Intensity</label>
                     <select id="intensity" required>
-                        <option value="Light">Light (<40%)</option>
+                        <option value="Light">Light (30-39%)</option>
                         <option value="Moderate">Moderate (40-60%)</option>
                     </select>
                 </div>
@@ -144,7 +162,6 @@
     let currentRecords = [];
     let currentSession = "";
 
-    // Helper function to return CSS class based on Ward string
     function getWardColorClass(wardStr) {
         let cleanWard = (wardStr || "").toString().trim().toUpperCase();
         if (cleanWard === "9B") return "ward-9B";
@@ -153,12 +170,10 @@
         return "";
     }
 
-    // Warm up connection on load
     window.addEventListener('DOMContentLoaded', () => {
         fetch(WEB_APP_URL + "?action=retrieve&session=AM", { mode: 'no-cors' }).catch(()=>{});
     });
 
-    // RETRIEVE DATA
     async function retrieveData(session) {
         currentSession = session;
         const loadStatus = document.getElementById('loadStatus');
@@ -199,7 +214,6 @@
         }
     }
 
-    // ADD PATIENT TO LOCAL LIST
     function addPatientToLocal() {
         const newPatient = {
             id: "PAT-" + Date.now(),
@@ -210,7 +224,8 @@
             age: parseInt(document.getElementById('age').value),
             intensity: document.getElementById('intensity').value,
             restingHR: "",
-            targetHR: ""
+            targetHR: "",
+            absent: false
         };
 
         currentRecords.push(newPatient);
@@ -221,8 +236,8 @@
         document.getElementById('age').value = '';
     }
 
-    // TARGET HR FORMULA CALCULATOR (UPDATED FOR RANGE AND DISPLAY FORMAT)
-    function calculateTargetHR(age, restingHR, intensity) {
+    function calculateTargetHR(age, restingHR, intensity, absent) {
+        if (absent) return "";
         let ageNum = parseFloat(age);
         let hrNum = parseFloat(restingHR);
 
@@ -232,8 +247,9 @@
         if (hrReserve <= 0) return "";
 
         if (intensity === "Light") {
-            let targetMax = Math.round((hrReserve * 0.40) + hrNum);
-            return `< ${targetMax}`;
+            let targetMin = Math.round((hrReserve * 0.30) + hrNum);
+            let targetMax = Math.round((hrReserve * 0.39) + hrNum);
+            return `${targetMin}-${targetMax}`;
         } else if (intensity === "Moderate") {
             let targetMin = Math.round((hrReserve * 0.40) + hrNum);
             let targetMax = Math.round((hrReserve * 0.60) + hrNum);
@@ -242,13 +258,13 @@
         return "";
     }
 
-    // DIRECT UPDATE FUNCTION FOR FAST TARGET HR RECALCULATION
     function updateRowHR(idx) {
         let age = currentRecords[idx].age;
         let restingHR = currentRecords[idx].restingHR;
         let intensity = currentRecords[idx].intensity;
+        let absent = currentRecords[idx].absent;
         
-        let targetHR = calculateTargetHR(age, restingHR, intensity);
+        let targetHR = calculateTargetHR(age, restingHR, intensity, absent);
         currentRecords[idx].targetHR = targetHR;
 
         let targetCell = document.getElementById(`target-hr-${idx}`);
@@ -257,12 +273,20 @@
         }
     }
 
+    function toggleAbsent(idx) {
+        currentRecords[idx].absent = !currentRecords[idx].absent;
+        if (currentRecords[idx].absent) {
+            currentRecords[idx].restingHR = "";
+        }
+        renderTable();
+    }
+
     function updateLocal(idx, field, value) {
         currentRecords[idx][field] = value;
         if (field === 'age' || field === 'intensity') {
             updateRowHR(idx);
         } else if (field === 'ward') {
-            renderTable(); // Re-render to update color class if Ward changes
+            renderTable();
         }
     }
 
@@ -271,7 +295,6 @@
         updateRowHR(idx);
     }
 
-    // RENDER TABLE
     function renderTable() {
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = "";
@@ -283,10 +306,11 @@
 
         let htmlBuffer = "";
         currentRecords.forEach((r, idx) => {
-            let targetHR = calculateTargetHR(r.age, r.restingHR, r.intensity);
+            let targetHR = calculateTargetHR(r.age, r.restingHR, r.intensity, r.absent);
             r.targetHR = targetHR;
 
             let colorClass = getWardColorClass(r.ward);
+            let isAbsent = r.absent || false;
 
             htmlBuffer += `
                 <tr>
@@ -297,11 +321,14 @@
                     <td><input class="table-input" type="number" style="width:45px;" value="${r.age}" onchange="updateLocal(${idx}, 'age', parseInt(this.value))"></td>
                     <td>
                         <select class="table-input" onchange="updateLocal(${idx}, 'intensity', this.value)">
-                            <option value="Light" ${r.intensity === 'Light' ? 'selected' : ''}>Light (<40%)</option>
+                            <option value="Light" ${r.intensity === 'Light' ? 'selected' : ''}>Light (30-39%)</option>
                             <option value="Moderate" ${r.intensity === 'Moderate' ? 'selected' : ''}>Moderate (40-60%)</option>
                         </select>
                     </td>
-                    <td><input class="table-input" type="number" placeholder="bpm" value="${r.restingHR}" oninput="handleRestingHRInput(${idx}, this.value)"></td>
+                    <td style="white-space: nowrap;">
+                        <input class="table-input" style="width:55px;" type="number" placeholder="bpm" value="${isAbsent ? '' : r.restingHR}" ${isAbsent ? 'disabled' : ''} oninput="handleRestingHRInput(${idx}, this.value)">
+                        <button class="btn-absent ${isAbsent ? 'active' : ''}" onclick="toggleAbsent(${idx})">${isAbsent ? 'Absent' : 'Abs?'}</button>
+                    </td>
                     <td class="target-hr-cell" id="target-hr-${idx}">${targetHR ? targetHR + ' bpm' : '-'}</td>
                     <td><button class="btn-danger" onclick="deleteLocal(${idx})">Delete</button></td>
                 </tr>
@@ -316,7 +343,6 @@
         renderTable();
     }
 
-    // MULTI-TIER SORTING (WARD -> THERAPIST -> BED)
     function sortData(key) {
         if (key === 'ward') {
             const wardPriority = { "9B": 1, "9C": 2, "9D": 3 };
@@ -348,7 +374,6 @@
         renderTable();
     }
 
-    // SAVE ALL CHANGES TO GOOGLE SHEET & LOCAL CACHE
     async function saveAllToExcel() {
         const saveStatus = document.getElementById('saveStatus');
         saveStatus.style.color = "#2980b9";
@@ -364,7 +389,7 @@
             let res = await response.json();
             if (res.status === "success") {
                 saveStatus.style.color = "#27ae60";
-                saveStatus.innerText = " Saved successfully to " + currentSession + " Sheet!";
+                saveStatus.innerText = " Saved successfully to " + currentSession + " Sheet & Analysis Tab!";
                 setTimeout(() => { saveStatus.innerText = ""; }, 4000);
             }
         } catch (e) {
