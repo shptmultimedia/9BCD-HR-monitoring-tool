@@ -17,7 +17,6 @@
         .form-group label { font-weight: bold; font-size: 0.8em; margin-bottom: 4px; color: #475569; }
         input, select { padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.9em; }
         
-        /* HIDE SPINNER ARROWS ON NUMBER INPUTS */
         input[type=number]::-webkit-outer-spin-button,
         input[type=number]::-webkit-inner-spin-button {
             -webkit-appearance: none;
@@ -38,7 +37,6 @@
         .btn-danger { background: #e74c3c; color: white; padding: 4px 8px; font-size: 0.8em; }
         .btn-sort { background: #e2e8f0; color: #334155; }
         
-        /* ABSENT BUTTON STYLES */
         .btn-absent {
             padding: 4px 8px;
             font-size: 0.75em;
@@ -64,7 +62,6 @@
         .target-hr-cell { font-weight: bold; color: #27ae60; }
         .status-msg { margin-left: 10px; font-size: 0.9em; font-weight: bold; }
 
-        /* WARD SPECIFIC COLORS */
         .ward-9B { background-color: #e0f2fe !important; }
         .ward-9C { background-color: #dcfce7 !important; }
         .ward-9D { background-color: #ffedd5 !important; }
@@ -73,7 +70,6 @@
 <body>
 
 <div class="container">
-    <!-- RETRIEVE SESSION BAR -->
     <div class="card">
         <div class="session-picker">
             <label style="font-weight: bold;">Select Gym Session:</label>
@@ -83,11 +79,9 @@
         </div>
     </div>
 
-    <!-- MAIN WORKSPACE -->
     <div id="workspace" class="card" style="display: none;">
         <h2 id="sessionHeader">Session Management</h2>
 
-        <!-- ENTRY FORM -->
         <form id="addForm" onsubmit="event.preventDefault(); addPatientToLocal();">
             <div class="form-grid">
                 <div class="form-group">
@@ -123,7 +117,6 @@
 
         <hr style="margin: 25px 0; border: 0; border-top: 1px solid #e2e8f0;">
 
-        <!-- TOOLBAR & SAVE -->
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <span style="font-size: 0.85em; font-weight: bold;">Sort by: </span>
@@ -136,7 +129,6 @@
             </div>
         </div>
 
-        <!-- PATIENT TABLE -->
         <table id="dataTable">
             <thead>
                 <tr>
@@ -170,23 +162,25 @@
         return "";
     }
 
+    // Auto-fetch AM list instantly on page load
     window.addEventListener('DOMContentLoaded', () => {
-        fetch(WEB_APP_URL + "?action=retrieve&session=AM", { mode: 'no-cors' }).catch(()=>{});
+        retrieveData('AM');
     });
 
     async function retrieveData(session) {
         currentSession = session;
         const loadStatus = document.getElementById('loadStatus');
         
+        // Render instantly from local cache if available
         const cachedData = localStorage.getItem('gym_records_' + session);
         if (cachedData) {
             try {
                 currentRecords = JSON.parse(cachedData);
-                document.getElementById('sessionHeader').innerText = session + " Gym Session List (Cached)";
+                document.getElementById('sessionHeader').innerText = session + " Gym Session List";
                 document.getElementById('workspace').style.display = "block";
                 renderTable();
                 loadStatus.style.color = "#2980b9";
-                loadStatus.innerText = "Loaded cached data. Refreshing live...";
+                loadStatus.innerText = "Loaded cached data. Refreshing...";
             } catch(e){}
         } else {
             loadStatus.style.color = "#2980b9";
@@ -210,6 +204,8 @@
             if (!cachedData) {
                 loadStatus.style.color = "#e74c3c";
                 loadStatus.innerText = "Error loading list.";
+            } else {
+                loadStatus.innerText = "";
             }
         }
     }
