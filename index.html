@@ -321,9 +321,14 @@
         tbody.innerHTML = htmlBuffer;
     }
 
+    // DELETE PATIENT WITH CONFIRMATION PROMPT
     function deleteLocal(idx) {
-        currentRecords.splice(idx, 1);
-        renderTable();
+        const patientName = currentRecords[idx].name || "this patient";
+        const confirmed = confirm(`Are you sure you want to delete ${patientName}?`);
+        if (confirmed) {
+            currentRecords.splice(idx, 1);
+            renderTable();
+        }
     }
 
     // MULTI-TIER SORTING (WARD -> THERAPIST -> BED)
